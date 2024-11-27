@@ -35,14 +35,12 @@ def load_pattern_file(pattern_name):
     with open(pattern_file, "r") as f:
         return json.load(f)
 
-
 def build_queries(pattern_data, target):
     """
     Constructs the search queries using the templates from the pattern JSON.
     """
     templates = pattern_data.get("templates", [])
     return [template.replace("{target}", target) for template in templates]
-
 
 def is_valid_file_url(url, valid_sites):
     """
@@ -52,15 +50,22 @@ def is_valid_file_url(url, valid_sites):
         return True  # No valid_sites specified; accept all URLs
     return any(site in url for site in valid_sites)
 
-def google_dork_search(queries, delay, max_pages=10, results_per_page=100):
+def google_dork_search(queries, delay, output_folder, max_pages=50, results_per_page=10):
     """
     Performs Google dork searches for the given queries.
     :param queries: List of queries to search for.
     :param delay: Delay (in seconds) between requests.
+    :param output_folder: Folder where the log file is stored.
     :param max_pages: Maximum number of pages to fetch.
     :param results_per_page: Number of results to fetch per page (max 100).
     """
     all_urls = []
+    exclude_domains = [
+        "google.com",
+        "webcache.googleusercontent.com",
+    ]
+    
+    log_file = os.path.join(output_folder, "gfu.log")
 
     for query in queries:
         print(f"{BLUE}Searching for: {query}{END}")
@@ -77,14 +82,24 @@ def google_dork_search(queries, delay, max_pages=10, results_per_page=100):
 
                 # Extract URLs using regex
                 urls = re.findall(r'href="(http[^"]+)"', response.text)
-                valid_urls = [url for url in urls if url.startswith("http")]
 
-                if not valid_urls:
-                    print(f"{BLUE}No more results found after {page + 1} pages.{END}")
-                    break
+                # Filter valid URLs (exclude unwanted domains)
+                valid_urls = [
+                    url for url in urls
+                    if url.startswith("http") and not any(exclude in url for exclude in exclude_domains)
+                ]
 
-                all_urls.extend(valid_urls)
-                print(f"{BLUE}Page {page + 1}: {len(valid_urls)} results found.{END}")
+                # Deduplicate and add new URLs
+                new_urls = [url for url in valid_urls if url not in all_urls]
+                if not new_urls:
+                    print(f"{BLUE}Stopping search: No new results found on page {page + 1}.{END}")
+                    break  # Stop search for this query if no new results are found
+
+                all_urls.extend(new_urls)
+                with open(log_file, "a") as f:
+                    f.writelines(url + "\n" for url in new_urls)
+
+                print(f"{BLUE}Page {page + 1}: {len(new_urls)} new results found.{END}")
                 time.sleep(delay)  # Delay between pages to avoid being blocked
 
             except requests.RequestException as e:
@@ -99,11 +114,10 @@ def log_urls(urls, valid_sites, output_folder):
     """
     filtered_urls = [url for url in urls if is_valid_file_url(url, valid_sites)]
     log_file = os.path.join(output_folder, "gfu.log")
-    with open(log_file, "w") as f:
+    with open(log_file, "a") as f:
         f.writelines(url + "\n" for url in filtered_urls)
     print(f"{BLUE}Logged URLs to:{END} {log_file}")
     return filtered_urls
-
 
 def list_pattern_files():
     """
@@ -111,7 +125,6 @@ def list_pattern_files():
     """
     pattern_files = [f for f in os.listdir(PATTERN_FOLDER) if f.endswith(".json")]
     return pattern_files
-
 
 def banner():
     """
@@ -132,7 +145,6 @@ def banner():
     """
     print(banner)
 
-
 def download_file(url, output_folder):
     """
     Downloads a file from the URL to the specified output folder.
@@ -148,7 +160,6 @@ def download_file(url, output_folder):
 
     except requests.RequestException as e:
         print(f"{RED}Failed to download file:{END} {url}\n{e}")
-
 
 def load_all_patterns():
     """
@@ -173,7 +184,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="Google Dork Search and File Downloader")
     parser.add_argument("-t", "--target", type=str, help="Target string for the search (e.g., company name)")
-    parser.add_argument("-o", "--output", type=str, required=True, help="Output folder to save logs")
+    parser.add_argument("-o", "--output", type=str, default="gfu", help="Output folder to save logs")
     parser.add_argument("-p", "--pattern", type=str, help="Comma-separated pattern names (e.g., api,secrets,repos)")
     parser.add_argument("-d", "--delay", type=float, default=2.0, help="Delay (in seconds) between search requests")
     parser.add_argument("-e", "--extension", type=str, help="Expected file extension for download (e.g., pdf, txt)")
@@ -215,7 +226,7 @@ def main():
             print(f"{BLUE}Processing pattern:{END} {pattern_name}")
             queries = build_queries(pattern_data, args.target)
             valid_sites = pattern_data.get("valid_sites", [])
-            urls = google_dork_search(queries, args.delay)
+            urls = google_dork_search(queries, args.delay, args.output)
             filtered_urls = log_urls(urls, valid_sites, args.output)
             all_urls.extend(filtered_urls)
 
@@ -238,7 +249,7 @@ def main():
             # Build queries and perform search
             queries = build_queries(pattern_data, args.target)
             valid_sites = pattern_data.get("valid_sites", [])
-            urls = google_dork_search(queries, args.delay)
+            urls = google_dork_search(queries, args.delay, args.output)
             filtered_urls = log_urls(urls, valid_sites, args.output)
             all_urls.extend(filtered_urls)
 
@@ -257,7 +268,7 @@ def main():
         # Build queries and perform search
         queries = build_queries(pattern_data, args.target)
         valid_sites = pattern_data.get("valid_sites", [])
-        urls = google_dork_search(queries, args.delay)
+        urls = google_dork_search(queries, args.delay, args.output)
         filtered_urls = log_urls(urls, valid_sites, args.output)
 
     # Download files

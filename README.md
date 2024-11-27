@@ -70,4 +70,5 @@ python3 gfu.py -t "example.com" -p secrets -o ./results --extended
 
 ## Support
 
-Support the creator to keep sharing new tools: <a href="https://www.buymeacoffee.com/Sheryx00" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
+Support the creator to keep sharing new tools:
+<a href="https://www.buymeacoffee.com/Sheryx00" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
