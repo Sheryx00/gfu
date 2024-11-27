@@ -1,4 +1,4 @@
-# **gfu (Google File Utilizer)**
+# **gfu (Google-Fu)**
 
 **gfu** is a Python tool for searching and downloading publicly accessible files using Google Dorks. It supports customizable search patterns, aggressive search mode, random user-agent rotation, and advanced logging and filtering capabilities.
 
