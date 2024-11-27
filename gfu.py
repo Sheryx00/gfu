@@ -63,6 +63,7 @@ def google_dork_search(queries, delay, output_folder, max_pages=50, results_per_
     exclude_domains = [
         "google.com",
         "webcache.googleusercontent.com",
+        "www.gstatic.com",
     ]
     
     log_file = os.path.join(output_folder, "gfu.log")
