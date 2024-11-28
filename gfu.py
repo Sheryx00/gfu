@@ -9,6 +9,7 @@ import re
 # Colors for terminal output
 BLUE = "\33[94m"
 RED = "\33[91m"
+GREEN = "\33[92m"
 END = "\033[0m"
 
 # Default location for JSON pattern files
@@ -76,7 +77,7 @@ def google_dork_search(queries, delay, output_folder, pattern_name, max_pages=50
         f.write(f"# {pattern_name}\n")
 
     for query in queries:
-        print(f"{BLUE}Searching for: {query}{END}")
+        print(f"{BLUE}Searching for: {GREEN}{query}{END}")
         for page in range(max_pages):
             start = page * results_per_page
             search_url = f"https://www.google.com/search?q={query}&start={start}&num={results_per_page}"
@@ -204,6 +205,15 @@ def main():
 
     args = parser.parse_args()
 
+    # Ensure output folder exists
+    if not os.path.exists(args.output):
+        try:
+            os.makedirs(args.output)
+            print(f"{GREEN}Created output folder:{END} {args.output}")
+        except OSError as e:
+            print(f"{RED}Error creating output folder '{args.output}': {e}{END}")
+            return
+            
     # Handle custom query
     if args.custom:
         query = args.custom
@@ -320,5 +330,7 @@ def main():
 if __name__ == "__main__":
     try:
         main()
+    except KeyboardInterrupt:
+        print(f"\n{RED}Script interrupted by user. Exiting...{END}")
     except Exception as e:
         print(f"\n{RED}An unexpected error occurred:{END} {str(e)}")
