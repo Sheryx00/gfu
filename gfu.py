@@ -195,7 +195,7 @@ def main():
     parser.add_argument("-t", "--target", type=str, help="Target string for the search (e.g., company name)")
     parser.add_argument("-o", "--output", type=str, default="gfu", help="Output folder to save logs")
     parser.add_argument("-p", "--pattern", type=str, help="Comma-separated pattern names (e.g., api,secrets,repos)")
-    parser.add_argument("-d", "--delay", type=float, default=2.0, help="Delay (in seconds) between search requests")
+    parser.add_argument("-d", "--delay", type=float, default=30, help="Delay (in seconds) between search requests")
     parser.add_argument("-e", "--extension", type=str, help="Expected file extension for download (e.g., pdf, txt)")
     parser.add_argument("-x", "--extended", action="store_true", help="Download all files regardless of type")
     parser.add_argument("-l", "--list", action="store_true", help="List all available pattern JSON files")
