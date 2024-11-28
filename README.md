@@ -26,6 +26,8 @@ git clone https://github.com/sheryx00/gfu.git
 ```bash
 python3 gfu.py -l
 ```
+:scroll: Check [gfu-patterns](https://github.com/Sheryx00/gfu-patterns) to download my patterns list. (rememeber to copy them inside the ~/.gfu folder)
+
 ### Search with a Single Pattern
 
 ```bash
