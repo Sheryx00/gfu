@@ -200,6 +200,7 @@ def main():
     parser.add_argument("-x", "--extended", action="store_true", help="Download all files regardless of type")
     parser.add_argument("-l", "--list", action="store_true", help="List all available pattern JSON files")
     parser.add_argument("-a", "--aggressive", action="store_true", help="Run all patterns in the pattern folder")
+    parser.add_argument("-c", "--custom", type=str, help="Custom query pattern (e.g., 'site:{target} filetype:pdf')")
     
     args = parser.parse_args()
 
@@ -212,17 +213,21 @@ def main():
                 print(f"- {file}")
         return
 
-    # Ensure target is specified for non-list modes
-    if not args.target and not args.aggressive:
-        print(f"{RED}Error: A target must be specified unless using aggressive mode.{END}")
-        return
-
     # Ensure output folder exists
     if not os.path.exists(args.output):
         os.makedirs(args.output)
 
+    all_urls = []
+
+    # Custom pattern via --custom flag
+    if args.custom:
+        print(f"{BLUE}Using custom pattern:{END} {args.custom}")
+        queries = [args.custom.replace("{target}", args.target)]
+        urls = google_dork_search(queries, args.delay, args.output, "custom")
+        all_urls.extend(urls)
+
     # Aggressive mode: process all patterns
-    if args.aggressive:
+    elif args.aggressive:
         print(f"{BLUE}Aggressive mode enabled. Testing all patterns in the folder.{END}")
         try:
             all_patterns = load_all_patterns()
@@ -230,7 +235,6 @@ def main():
             print(e)
             return
 
-        all_urls = []
         for pattern_name, pattern_data in all_patterns.items():
             print(f"{BLUE}Processing pattern:{END} {pattern_name}")
             queries = build_queries(pattern_data, args.target)
@@ -239,14 +243,9 @@ def main():
             filtered_urls = log_urls(urls, valid_sites, args.output)
             all_urls.extend(filtered_urls)
 
-        all_urls = list(set(all_urls))  # Deduplicate across patterns
-        print(f"{BLUE}Total unique URLs found:{END} {len(all_urls)}")
-
     # Process multiple patterns specified by -p
     elif args.pattern:
         pattern_names = args.pattern.split(",")
-        all_urls = []
-
         for pattern_name in pattern_names:
             try:
                 pattern_data = load_pattern_file(pattern_name)
@@ -255,34 +254,29 @@ def main():
                 continue
 
             print(f"{BLUE}Processing pattern:{END} {pattern_name}")
-            # Build queries and perform search
             queries = build_queries(pattern_data, args.target)
             valid_sites = pattern_data.get("valid_sites", [])
             urls = google_dork_search(queries, args.delay, args.output, pattern_name)
             filtered_urls = log_urls(urls, valid_sites, args.output)
             all_urls.extend(filtered_urls)
 
-        # Deduplicate URLs across all patterns
-        all_urls = list(set(all_urls))
-        print(f"{BLUE}Total unique URLs found:{END} {len(all_urls)}")
+    # If no patterns are specified, only use the target with a simple search
+    elif args.target:
+        print(f"{BLUE}Using target-only search for:{END} {args.target}")
+        queries = [args.target]
+        urls = google_dork_search(queries, args.delay, args.output, "target-only")
+        all_urls.extend(urls)
 
     else:
-        # Load the specific pattern
-        try:
-            pattern_data = load_pattern_file(args.pattern)
-        except FileNotFoundError as e:
-            print(e)
-            return
+        print(f"{RED}Error: A target or custom pattern must be specified.{END}")
+        return
 
-        # Build queries and perform search
-        queries = build_queries(pattern_data, args.target)
-        valid_sites = pattern_data.get("valid_sites", [])
-        urls = google_dork_search(queries, args.delay, args.output)
-        filtered_urls = log_urls(urls, valid_sites, args.output)
+    # Deduplicate URLs
+    all_urls = list(set(all_urls))
+    print(f"{BLUE}Total unique URLs found:{END} {len(all_urls)}")
 
     # Download files
-    urls_to_download = all_urls if args.aggressive or args.pattern else filtered_urls
-    for url in urls_to_download:
+    for url in all_urls:
         if args.extended or (args.extension and args.extension in url):
             download_file(url, args.output)
         elif args.extension:
@@ -292,4 +286,7 @@ def main():
         print(f"{BLUE}No download options specified, skipping file downloads.{END}")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"\n{RED}An unexpected error occurred:{END} {str(e)}")
