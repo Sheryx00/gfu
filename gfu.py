@@ -50,12 +50,13 @@ def is_valid_file_url(url, valid_sites):
         return True  # No valid_sites specified; accept all URLs
     return any(site in url for site in valid_sites)
 
-def google_dork_search(queries, delay, output_folder, max_pages=50, results_per_page=10):
+def google_dork_search(queries, delay, output_folder, pattern_name, max_pages=50, results_per_page=10):
     """
     Performs Google dork searches for the given queries.
     :param queries: List of queries to search for.
     :param delay: Delay (in seconds) between requests.
     :param output_folder: Folder where the log file is stored.
+    :param pattern_name: Name of the pattern being searched.
     :param max_pages: Maximum number of pages to fetch.
     :param results_per_page: Number of results to fetch per page (max 100).
     """
@@ -65,9 +66,14 @@ def google_dork_search(queries, delay, output_folder, max_pages=50, results_per_
         "webcache.googleusercontent.com",
         "www.gstatic.com",
         "search.app.goo.gl",
+        "www.google.se",
     ]
     
     log_file = os.path.join(output_folder, "gfu.log")
+
+    # Add header for the pattern
+    with open(log_file, "a") as f:
+        f.write(f"# {pattern_name}\n")
 
     for query in queries:
         print(f"{BLUE}Searching for: {query}{END}")
@@ -95,6 +101,7 @@ def google_dork_search(queries, delay, output_folder, max_pages=50, results_per_
                 new_urls = [url for url in valid_urls if url not in all_urls]
                 if not new_urls:
                     print(f"{BLUE}Stopping search: No new results found on page {page + 1}.{END}")
+                    time.sleep(delay)  # Delay between pages to avoid being blocked
                     break  # Stop search for this query if no new results are found
 
                 all_urls.extend(new_urls)
