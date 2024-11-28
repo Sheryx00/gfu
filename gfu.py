@@ -64,6 +64,7 @@ def google_dork_search(queries, delay, output_folder, max_pages=50, results_per_
         "google.com",
         "webcache.googleusercontent.com",
         "www.gstatic.com",
+        "search.app.goo.gl",
     ]
     
     log_file = os.path.join(output_folder, "gfu.log")
@@ -227,7 +228,7 @@ def main():
             print(f"{BLUE}Processing pattern:{END} {pattern_name}")
             queries = build_queries(pattern_data, args.target)
             valid_sites = pattern_data.get("valid_sites", [])
-            urls = google_dork_search(queries, args.delay, args.output)
+            urls = google_dork_search(queries, args.delay, args.output, pattern_name)
             filtered_urls = log_urls(urls, valid_sites, args.output)
             all_urls.extend(filtered_urls)
 
@@ -250,7 +251,7 @@ def main():
             # Build queries and perform search
             queries = build_queries(pattern_data, args.target)
             valid_sites = pattern_data.get("valid_sites", [])
-            urls = google_dork_search(queries, args.delay, args.output)
+            urls = google_dork_search(queries, args.delay, args.output, pattern_name)
             filtered_urls = log_urls(urls, valid_sites, args.output)
             all_urls.extend(filtered_urls)
 
