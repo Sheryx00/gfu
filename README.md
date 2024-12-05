@@ -60,15 +60,26 @@ python3 gfu.py -t "example.com" -p secrets -o ./results --extended
 ## Help
 
 ```bash
--t, --target        Target string for the search (e.g., domain name).
--o, --output        Output folder to save logs and downloaded files. (Required)
--p, --pattern       Comma-separated list of pattern names (e.g., api,secrets,repos).
--a, --aggressive    Enable aggressive mode to use all patterns in the .gfu folder.
--d, --delay         Delay (in seconds) between requests. Default is 2.0.
--e, --extension     Filter downloads by specific file extension (e.g., pdf, txt, csv).
--x, --extended      Download all files regardless of extension.
--l, --list          List all available pattern JSON files.
--c, --custom        Custom Google dork query (e.g., 'site:github.com filetype:pdf')
+Google Dork Search and File Downloader
+
+options:
+  -h, --help            show this help message and exit
+  -t TARGET, --target TARGET
+                        Target string for the search (e.g., domain.com)
+  -f FILE, --file FILE  File containing a list of targets (one per line)
+  -o OUTPUT, --output OUTPUT
+                        Output folder to save logs
+  -p PATTERN, --pattern PATTERN
+                        Comma-separated pattern names (e.g., api,secrets,repos)
+  -d DELAY, --delay DELAY
+                        Delay (in seconds or range) between search requests
+  -e EXTENSION, --extension EXTENSION
+                        Expected file extension for download (e.g., pdf, txt)
+  -x, --extended        Download all files regardless of type
+  -l, --list            List all available pattern JSON files
+  -a, --aggressive      Run all patterns in the pattern folder
+  -c CUSTOM, --custom CUSTOM
+                        Custom Google dork query (e.g., 'site:{target} filetype:pdf')
 ```
 
 ## Support

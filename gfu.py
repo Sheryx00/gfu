@@ -255,6 +255,14 @@ def main():
             return
     elif args.target:
         targets = [args.target]
+    # Handle listing patterns
+    elif args.list:
+        files = list_pattern_files()
+        if files:
+            print(f"{BLUE}Available pattern files:{END}")
+            for file in files:
+                print(f"- {file}")
+        return
     else:
         print(f"{RED}Error: A target must be specified with -t or -f.{END}")
         return
@@ -264,15 +272,6 @@ def main():
         delay_generator = parse_delay_argument(args.delay)
     except ValueError as e:
         print(f"{RED}{e}{END}")
-        return
-
-    # Handle listing patterns
-    if args.list:
-        files = list_pattern_files()
-        if files:
-            print(f"{BLUE}Available pattern files:{END}")
-            for file in files:
-                print(f"- {file}")
         return
 
     # Ensure output folder exists
