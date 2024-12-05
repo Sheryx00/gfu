@@ -25,16 +25,38 @@ USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/114.0.1823.67"
 ]
 
-def load_pattern_file(pattern_name):
+def parse_delay_argument(delay_arg):
     """
-    Loads the JSON file for the specified pattern from the pattern folder.
+    Parses the delay argument and determines if it is a single value or a range.
+    :param delay_arg: The delay argument passed (e.g., "30" or "30-60").
+    :return: A callable that generates delays (single value or random within range).
     """
-    pattern_file = os.path.join(PATTERN_FOLDER, f"{pattern_name}.json")
-    if not os.path.exists(pattern_file):
-        raise FileNotFoundError(f"{RED}Pattern file not found:{END} {pattern_file}")
-    
-    with open(pattern_file, "r") as f:
-        return json.load(f)
+    if '-' in str(delay_arg):
+        try:
+            min_delay, max_delay = map(float, delay_arg.split('-'))
+            if min_delay > max_delay:
+                raise ValueError("Invalid delay range: minimum value is greater than maximum value.")
+            return lambda: random.uniform(min_delay, max_delay)
+        except ValueError as e:
+            raise ValueError(f"Invalid delay range format: {delay_arg}. Expected format is 'min-max'.") from e
+    else:
+        try:
+            delay = float(delay_arg)
+            return lambda: delay
+        except ValueError as e:
+            raise ValueError(f"Invalid delay format: {delay_arg}. Expected a single number or a range (e.g., '30' or '30-60').") from e
+
+def read_targets_from_file(file_path):
+    """
+    Reads a list of targets (domains) from a specified file.
+    :param file_path: Path to the file containing the list of domains.
+    :return: A list of domains.
+    """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"{RED}Target file not found:{END} {file_path}")
+    with open(file_path, "r") as f:
+        targets = [line.strip() for line in f if line.strip()]
+    return targets
 
 def build_queries(pattern_data, target):
     """
@@ -51,11 +73,11 @@ def is_valid_file_url(url, valid_sites):
         return True  # No valid_sites specified; accept all URLs
     return any(site in url for site in valid_sites)
 
-def google_dork_search(queries, delay, output_folder, pattern_name, max_pages=50, results_per_page=10):
+def google_dork_search(queries, delay_generator, output_folder, pattern_name, max_pages=50, results_per_page=10):
     """
     Performs Google dork searches for the given queries.
     :param queries: List of queries to search for.
-    :param delay: Delay (in seconds) between requests.
+    :param delay_generator: A callable that returns the delay value for each iteration.
     :param output_folder: Folder where the log file is stored.
     :param pattern_name: Name of the pattern being searched.
     :param max_pages: Maximum number of pages to fetch.
@@ -102,7 +124,7 @@ def google_dork_search(queries, delay, output_folder, pattern_name, max_pages=50
                 new_urls = [url for url in valid_urls if url not in all_urls]
                 if not new_urls:
                     print(f"{BLUE}Stopping search: No new results found on page {page + 1}.{END}")
-                    time.sleep(delay)  # Delay between pages to avoid being blocked
+                    time.sleep(delay_generator())  # Delay between pages to avoid being blocked
                     break  # Stop search for this query if no new results are found
 
                 all_urls.extend(new_urls)
@@ -110,7 +132,7 @@ def google_dork_search(queries, delay, output_folder, pattern_name, max_pages=50
                     f.writelines(url + "\n" for url in new_urls)
 
                 print(f"{BLUE}Page {page + 1}: {len(new_urls)} new results found.{END}")
-                time.sleep(delay)  # Delay between pages to avoid being blocked
+                time.sleep(delay_generator())  # Delay between pages to avoid being blocked
 
             except requests.RequestException as e:
                 print(f"{RED}Failed to fetch page {page + 1}:{END}\n{e}")
@@ -151,7 +173,6 @@ def banner():
 
      {BLUE}Created by{END}: @Sheryx00
      {BLUE}Github{END}: https://github.com/Sheryx00/gfu
-
     """
     print(banner)
 
@@ -170,6 +191,17 @@ def download_file(url, output_folder):
 
     except requests.RequestException as e:
         print(f"{RED}Failed to download file:{END} {url}\n{e}")
+
+def load_pattern_file(pattern_name):
+    """
+    Loads the JSON file for the specified pattern from the pattern folder.
+    """
+    pattern_file = os.path.join(PATTERN_FOLDER, f"{pattern_name}.json")
+    if not os.path.exists(pattern_file):
+        raise FileNotFoundError(f"{RED}Pattern file not found:{END} {pattern_file}")
+    
+    with open(pattern_file, "r") as f:
+        return json.load(f)
 
 def load_all_patterns():
     """
@@ -193,10 +225,11 @@ def main():
     banner()
 
     parser = argparse.ArgumentParser(description="Google Dork Search and File Downloader")
-    parser.add_argument("-t", "--target", type=str, help="Target string for the search (e.g., company name)")
+    parser.add_argument("-t", "--target", type=str, help="Target string for the search (e.g., domain.com)")
+    parser.add_argument("-f", "--file", type=str, help="File containing a list of targets (one per line)")
     parser.add_argument("-o", "--output", type=str, default="gfu", help="Output folder to save logs")
     parser.add_argument("-p", "--pattern", type=str, help="Comma-separated pattern names (e.g., api,secrets,repos)")
-    parser.add_argument("-d", "--delay", type=float, default=30, help="Delay (in seconds) between search requests")
+    parser.add_argument("-d", "--delay", type=str, default="30", help="Delay (in seconds or range) between search requests")
     parser.add_argument("-e", "--extension", type=str, help="Expected file extension for download (e.g., pdf, txt)")
     parser.add_argument("-x", "--extended", action="store_true", help="Download all files regardless of type")
     parser.add_argument("-l", "--list", action="store_true", help="List all available pattern JSON files")
@@ -204,6 +237,43 @@ def main():
     parser.add_argument("-c", "--custom", type=str, help="Custom Google dork query (e.g., 'site:{target} filetype:pdf')")
 
     args = parser.parse_args()
+
+    # Ensure mutual exclusivity between -t and -f
+    if args.target and args.file:
+        print(f"{RED}Error: Specify either -t (single target) or -f (target file), not both.{END}")
+        return
+
+    # Load targets from file or single target
+    if args.file:
+        try:
+            targets = read_targets_from_file(args.file)
+            if not targets:
+                print(f"{RED}Error: The target file is empty.{END}")
+                return
+        except FileNotFoundError as e:
+            print(e)
+            return
+    elif args.target:
+        targets = [args.target]
+    else:
+        print(f"{RED}Error: A target must be specified with -t or -f.{END}")
+        return
+
+    # Parse delay argument
+    try:
+        delay_generator = parse_delay_argument(args.delay)
+    except ValueError as e:
+        print(f"{RED}{e}{END}")
+        return
+
+    # Handle listing patterns
+    if args.list:
+        files = list_pattern_files()
+        if files:
+            print(f"{BLUE}Available pattern files:{END}")
+            for file in files:
+                print(f"- {file}")
+        return
 
     # Ensure output folder exists
     if not os.path.exists(args.output):
@@ -213,112 +283,53 @@ def main():
         except OSError as e:
             print(f"{RED}Error creating output folder '{args.output}': {e}{END}")
             return
-            
-    # Handle custom query
-    if args.custom:
-        query = args.custom
-        if "{target}" in query:
-            if not args.target:
-                print(f"{RED}Error: The custom query contains '{{target}}', but no target (-t) was provided.{END}")
-                return
-            query = query.replace("{target}", args.target)
 
-        print(f"{BLUE}Executing custom query:{END} {query}")
-
-        # Build a single-query list and perform the search
-        queries = [query]
-        urls = google_dork_search(queries, args.delay, args.output, "custom_query")
-        log_urls(urls, [], args.output)
-
-        # Optional: Download files if extensions are specified
-        for url in urls:
-            if args.extended or (args.extension and args.extension in url):
-                download_file(url, args.output)
-            elif args.extension:
-                print(f"{RED}Skipping file (extension):{END} {url}")
-
-        return
-
-    # List pattern files if -l flag is set
-    if args.list:
-        files = list_pattern_files()
-        if files:
-            print(f"{BLUE}Available pattern files:{END}")
-            for file in files:
-                print(f"- {file}")
-        return
-
-    # Ensure target is specified for non-list modes
-    if not args.target and not args.aggressive:
-        print(f"{RED}Error: A target must be specified unless using aggressive mode.{END}")
-        return
-
-    # Ensure output folder exists
-    if not os.path.exists(args.output):
-        os.makedirs(args.output)
-
-    # Aggressive mode: process all patterns
+    # Handle aggressive mode or specific patterns
+    all_urls = []
     if args.aggressive:
-        print(f"{BLUE}Aggressive mode enabled. Testing all patterns in the folder.{END}")
+        print(f"{BLUE}Aggressive mode enabled. Testing all patterns for all targets.{END}")
         try:
             all_patterns = load_all_patterns()
         except FileNotFoundError as e:
             print(e)
             return
 
-        all_urls = []
-        for pattern_name, pattern_data in all_patterns.items():
-            print(f"{BLUE}Processing pattern:{END} {pattern_name}")
-            queries = build_queries(pattern_data, args.target)
-            valid_sites = pattern_data.get("valid_sites", [])
-            urls = google_dork_search(queries, args.delay, args.output, pattern_name)
-            filtered_urls = log_urls(urls, valid_sites, args.output)
-            all_urls.extend(filtered_urls)
+        for target in targets:
+            for pattern_name, pattern_data in all_patterns.items():
+                print(f"{BLUE}Processing pattern:{END} {pattern_name} for target {GREEN}{target}{END}")
+                queries = build_queries(pattern_data, target)
+                valid_sites = pattern_data.get("valid_sites", [])
+                urls = google_dork_search(queries, delay_generator, args.output, pattern_name)
+                filtered_urls = log_urls(urls, valid_sites, args.output)
+                all_urls.extend(filtered_urls)
 
-        all_urls = list(set(all_urls))  # Deduplicate across patterns
-        print(f"{BLUE}Total unique URLs found:{END} {len(all_urls)}")
-
-    # Process multiple patterns specified by -p
     elif args.pattern:
         pattern_names = args.pattern.split(",")
-        all_urls = []
+        for target in targets:
+            for pattern_name in pattern_names:
+                try:
+                    pattern_data = load_pattern_file(pattern_name)
+                except FileNotFoundError as e:
+                    print(e)
+                    continue
 
-        for pattern_name in pattern_names:
-            try:
-                pattern_data = load_pattern_file(pattern_name)
-            except FileNotFoundError as e:
-                print(e)
-                continue
-
-            print(f"{BLUE}Processing pattern:{END} {pattern_name}")
-            # Build queries and perform search
-            queries = build_queries(pattern_data, args.target)
-            valid_sites = pattern_data.get("valid_sites", [])
-            urls = google_dork_search(queries, args.delay, args.output, pattern_name)
-            filtered_urls = log_urls(urls, valid_sites, args.output)
-            all_urls.extend(filtered_urls)
-
-        # Deduplicate URLs across all patterns
-        all_urls = list(set(all_urls))
-        print(f"{BLUE}Total unique URLs found:{END} {len(all_urls)}")
+                print(f"{BLUE}Processing pattern:{END} {pattern_name} for target {GREEN}{target}{END}")
+                queries = build_queries(pattern_data, target)
+                valid_sites = pattern_data.get("valid_sites", [])
+                urls = google_dork_search(queries, delay_generator, args.output, pattern_name)
+                filtered_urls = log_urls(urls, valid_sites, args.output)
+                all_urls.extend(filtered_urls)
 
     else:
-        # Load the specific pattern
-        try:
-            pattern_data = load_pattern_file(args.pattern)
-        except FileNotFoundError as e:
-            print(e)
-            return
+        print(f"{RED}Error: Patterns (-p) or aggressive mode (-a) must be specified.{END}")
+        return
 
-        # Build queries and perform search
-        queries = build_queries(pattern_data, args.target)
-        valid_sites = pattern_data.get("valid_sites", [])
-        urls = google_dork_search(queries, args.delay, args.output)
-        filtered_urls = log_urls(urls, valid_sites, args.output)
+    # Deduplicate URLs across all patterns and targets
+    all_urls = list(set(all_urls))
+    print(f"{BLUE}Total unique URLs found:{END} {len(all_urls)}")
 
-    # Download files
-    urls_to_download = all_urls if args.aggressive or args.pattern else filtered_urls
-    for url in urls_to_download:
+    # Download files if applicable
+    for url in all_urls:
         if args.extended or (args.extension and args.extension in url):
             download_file(url, args.output)
         elif args.extension:
