@@ -91,14 +91,14 @@ def google_dork_search(queries, delay_generator, output_folder, pattern_name, ma
         "search.app.goo.gl",
         "www.google.se",
     ]
-    
+
     log_file = os.path.join(output_folder, "gfu.log")
 
-    # Add header for the pattern
-    with open(log_file, "a") as f:
-        f.write(f"# {pattern_name}\n")
-
     for query in queries:
+        # Write the completed Google Dork query as a commented line
+        with open(log_file, "a") as f:
+            f.write(f"# {query}\n")
+
         print(f"{BLUE}Searching for: {GREEN}{query}{END}")
         for page in range(max_pages):
             start = page * results_per_page
