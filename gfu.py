@@ -112,8 +112,8 @@ def google_dork_search(queries, delay_generator, output_folder, pattern_name, ma
                 
                 # Check for 429 status code
                 if response.status_code == 429:
-                    print(f"{RED}Rate limit reached (HTTP 429). Stopping further requests.{END}")
-                    return all_urls  # Return the results gathered so far
+                    print(f"{RED}Rate limit reached (HTTP 429). Stopping.{END}")
+                    exit(1)
 
                 response.raise_for_status()
 
