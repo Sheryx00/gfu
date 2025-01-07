@@ -90,6 +90,7 @@ def google_dork_search(queries, delay_generator, output_folder, pattern_name, ma
         "www.gstatic.com",
         "search.app.goo.gl",
         "www.google.se",
+        "www.google.de",
     ]
 
     log_file = os.path.join(output_folder, "gfu.log")
