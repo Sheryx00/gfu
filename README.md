@@ -13,10 +13,12 @@
 
 ## Installation
 
-Clone this repository:
+Clone this repository and install the requirements file:
 
 ```bash
 git clone https://github.com/sheryx00/gfu.git
+cd gfu
+pip install -r requirements.txt
 ```
 
 ## Usage
@@ -31,31 +33,31 @@ python3 gfu.py -l
 ### Search with a Single Pattern
 
 ```bash
-python3 gfu.py -t "example.com" -p api -o ./results --delay 2
+python3 gfu.py -t "example.com" -p api
 ```
 
 ### Combine Multiple Patterns
 
 ```bash
-python3 gfu.py -t "example.com" -p api,secrets,repos -o ./results --delay 3
+python3 gfu.py -t "example.com" -p api,secrets,repos
 ```
 
-### Aggressive Mode
+### Aggressive Mode (all patterns)
 
 ```bash
-python3 gfu.py -t "example.com" -a -o ./results --delay 2
+python3 gfu.py -t "example.com" -a
 ```
 
 ### Filter Downloads by File Extension
 
 ```bash
-python3 gfu.py -t "example.com" -p api -o ./results --extension pdf
+python3 gfu.py -t "example.com" -p api --extension pdf
 ```
 
 # Download All File Types
 
 ```bash
-python3 gfu.py -t "example.com" -p secrets -o ./results --extended
+python3 gfu.py -t "example.com" -p secrets --extended
 ```
 ## Help
 

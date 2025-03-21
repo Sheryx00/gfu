@@ -5,6 +5,7 @@ import argparse
 import random
 import requests
 import re
+from googlesearch import search
 
 # Colors for terminal output
 BLUE = "\33[94m"
@@ -14,16 +15,6 @@ END = "\033[0m"
 
 # Default location for JSON pattern files
 PATTERN_FOLDER = os.path.expanduser("~/.gfu")
-
-# List of most commonly used User-Agent strings
-USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 15_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Mobile/15E148 Safari/604.1",
-    "Mozilla/5.0 (iPad; CPU OS 15_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Mobile/15E148 Safari/604.1",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/114.0.1823.67"
-]
 
 def parse_delay_argument(delay_arg):
     """
@@ -75,7 +66,7 @@ def is_valid_file_url(url, valid_sites):
 
 def google_dork_search(queries, delay_generator, output_folder, pattern_name, max_pages=50, results_per_page=10):
     """
-    Performs Google dork searches for the given queries.
+    Performs Google dork searches for the given queries using the `googlesearch` library.
     :param queries: List of queries to search for.
     :param delay_generator: A callable that returns the delay value for each iteration.
     :param output_folder: Folder where the log file is stored.
@@ -83,17 +74,19 @@ def google_dork_search(queries, delay_generator, output_folder, pattern_name, ma
     :param max_pages: Maximum number of pages to fetch.
     :param results_per_page: Number of results to fetch per page (max 100).
     """
-    all_urls = []
-    exclude_domains = [
+    all_urls = set()  # Use a set to automatically deduplicate URLs
+    exclude_domains = {
         "google.com",
         "webcache.googleusercontent.com",
         "www.gstatic.com",
         "search.app.goo.gl",
         "www.google.se",
         "www.google.de",
-    ]
-
-    log_file = os.path.join(output_folder, "gfu.log")
+    }
+    if output_folder:
+        log_file = os.path.join(output_folder, "gfu.log")
+    else:
+        log_file = False
 
     for query in queries:
         # Write the completed Google Dork query as a commented line
@@ -101,61 +94,40 @@ def google_dork_search(queries, delay_generator, output_folder, pattern_name, ma
             f.write(f"# {query}\n")
 
         print(f"{BLUE}Searching for: {GREEN}{query}{END}")
-        for page in range(max_pages):
-            start = page * results_per_page
-            search_url = f"https://www.google.com/search?q={query}&start={start}&num={results_per_page}"
 
-            try:
-                headers = {
-                    "User-Agent": random.choice(USER_AGENTS),
-                }
-                response = requests.get(search_url, headers=headers)
-                
-                # Check for 429 status code
-                if response.status_code == 429:
-                    print(f"{RED}Rate limit reached (HTTP 429). Sleeping...{END}")
-                    time.sleep(3600)
+        try:
+            # Use the `googlesearch.search` function to fetch URLs
+            for url in search(
+                query,
+                num_results=max_pages * results_per_page,  # Total results to fetch
+                lang="en",  # Language
+            ):
+                # Filter out unwanted domains
+                if not any(exclude in url for exclude in exclude_domains):
+                    if url not in all_urls:
+                        all_urls.add(url)
+                        if log_file:
+                            with open(log_file, "a") as f:
+                                f.write(f"{url}\n")
+                        print(f"{GREEN}{url}{END}")
+            time.sleep(delay_generator())
 
-                response.raise_for_status()
+        except Exception as e:
+            print(f"{RED}Error during search:{END}\n{e}")
+            continue  # Continue with the next query if an error occurs
 
-                # Extract URLs using regex
-                urls = re.findall(r'href="(http[^"]+)"', response.text)
-
-                # Filter valid URLs (exclude unwanted domains)
-                valid_urls = [
-                    url for url in urls
-                    if url.startswith("http") and not any(exclude in url for exclude in exclude_domains)
-                ]
-
-                # Deduplicate and add new URLs
-                new_urls = [url for url in valid_urls if url not in all_urls]
-                if not new_urls:
-                    print(f"{BLUE}Stopping search: No new results found on page {page + 1}.{END}")
-                    time.sleep(delay_generator())  # Delay between pages to avoid being blocked
-                    break  # Stop search for this query if no new results are found
-
-                all_urls.extend(new_urls)
-                with open(log_file, "a") as f:
-                    f.writelines(url + "\n" for url in new_urls)
-
-                print(f"{BLUE}Page {page + 1}: {len(new_urls)} new results found.{END}")
-                time.sleep(delay_generator())  # Delay between pages to avoid being blocked
-
-            except requests.RequestException as e:
-                print(f"{RED}Failed to fetch page {page + 1}:{END}\n{e}")
-                break
-
-    return list(set(all_urls))  # Deduplicate URLs
+    return list(all_urls)  # Return the deduplicated list of URLs
 
 def log_urls(urls, valid_sites, output_folder):
     """
     Logs all valid URLs to a file named `gfu.log` in the specified output folder.
     """
     filtered_urls = [url for url in urls if is_valid_file_url(url, valid_sites)]
-    log_file = os.path.join(output_folder, "gfu.log")
-    with open(log_file, "a") as f:
-        f.writelines(url + "\n" for url in filtered_urls)
-    print(f"{BLUE}Logged URLs to:{END} {log_file}")
+    if output_folder:
+        log_file = os.path.join(output_folder, "gfu.log")
+        with open(log_file, "a") as f:
+            f.writelines(url + "\n" for url in filtered_urls)
+        print(f"{BLUE}Logged URLs to:{END} {log_file}")
     return filtered_urls
 
 def list_pattern_files():
@@ -175,7 +147,7 @@ def banner():
    ____ _/ __/_  __
   / __ `/ /_/ / / /
  / /_/ / __/ /_/ / 
- \__, /_/  \__,_/  
+ \\__, /_/  \\__,_/  
 /____/             \n{END}
 
      {BLUE}Created by{END}: @Sheryx00
@@ -234,7 +206,7 @@ def main():
     parser = argparse.ArgumentParser(description="Google Dork Search and File Downloader")
     parser.add_argument("-t", "--target", type=str, help="Target string for the search (e.g., domain.com)")
     parser.add_argument("-f", "--file", type=str, help="File containing a list of targets (one per line)")
-    parser.add_argument("-o", "--output", type=str, default="gfu", help="Output folder to save logs")
+    parser.add_argument("-o", "--output", type=str, default=None, help="Output folder to save logs")
     parser.add_argument("-p", "--pattern", type=str, help="Comma-separated pattern names (e.g., api,secrets,repos)")
     parser.add_argument("-d", "--delay", type=str, default="30", help="Delay (in seconds or range) between search requests")
     parser.add_argument("-e", "--extension", type=str, help="Expected file extension for download (e.g., pdf, txt)")
@@ -282,13 +254,14 @@ def main():
         return
 
     # Ensure output folder exists
-    if not os.path.exists(args.output):
-        try:
-            os.makedirs(args.output)
-            print(f"{GREEN}Created output folder:{END} {args.output}")
-        except OSError as e:
-            print(f"{RED}Error creating output folder '{args.output}': {e}{END}")
-            return
+    if args.output:
+        if not os.path.exists(args.output):
+            try:
+                os.makedirs(args.output)
+                print(f"{GREEN}Created output folder:{END} {args.output}")
+            except OSError as e:
+                print(f"{RED}Error creating output folder '{args.output}': {e}{END}")
+                return
 
     # Handle aggressive mode or specific patterns
     all_urls = []
@@ -326,8 +299,15 @@ def main():
                 filtered_urls = log_urls(urls, valid_sites, args.output)
                 all_urls.extend(filtered_urls)
 
+    elif args.custom:
+        pattern = args.custom
+        for target in targets:
+                query = pattern.replace("{target}", target)
+                urls = google_dork_search([query,], delay_generator, args.output, pattern_name="")
+                filtered_urls = log_urls(urls, valid_sites, args.output)
+                all_urls.extend(filtered_urls)
     else:
-        print(f"{RED}Error: Patterns (-p) or aggressive mode (-a) must be specified.{END}")
+        print(f"{RED}Error: Patterns (-p), custom (-c) or aggressive mode (-a) must be specified.{END}")
         return
 
     # Deduplicate URLs across all patterns and targets
