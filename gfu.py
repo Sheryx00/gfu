@@ -100,7 +100,6 @@ def google_dork_search(queries, delay_generator, output_folder, pattern_name, ma
             for url in search(
                 query,
                 num_results=max_pages * results_per_page,  # Total results to fetch
-                lang="en",  # Language
             ):
                 # Filter out unwanted domains
                 if not any(exclude in url for exclude in exclude_domains):
