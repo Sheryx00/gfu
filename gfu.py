@@ -64,11 +64,11 @@ def is_valid_file_url(url, valid_sites):
         return True  # No valid_sites specified; accept all URLs
     return any(site in url for site in valid_sites)
 
-def google_dork_search(queries, delay_generator, output_folder, pattern_name, max_pages=50, results_per_page=10):
+def google_dork_search(queries, delay, output_folder, pattern_name, max_pages=50, results_per_page=10):
     """
     Performs Google dork searches for the given queries using the `googlesearch` library.
     :param queries: List of queries to search for.
-    :param delay_generator: A callable that returns the delay value for each iteration.
+    :param delay: A callable that returns the delay value for each iteration.
     :param output_folder: Folder where the log file is stored.
     :param pattern_name: Name of the pattern being searched.
     :param max_pages: Maximum number of pages to fetch.
@@ -82,6 +82,7 @@ def google_dork_search(queries, delay_generator, output_folder, pattern_name, ma
         "search.app.goo.gl",
         "www.google.se",
         "www.google.de",
+        # "/search?q=",
     }
     if output_folder:
         log_file = os.path.join(output_folder, "gfu.log")
@@ -100,8 +101,9 @@ def google_dork_search(queries, delay_generator, output_folder, pattern_name, ma
             for url in search(
                 query,
                 num_results=max_pages * results_per_page,  # Total results to fetch
+                sleep_interval=delay,
             ):
-                # Filter out unwanted domains
+                # Filter out unwanted results
                 if not any(exclude in url for exclude in exclude_domains):
                     if url not in all_urls:
                         all_urls.add(url)
@@ -109,7 +111,6 @@ def google_dork_search(queries, delay_generator, output_folder, pattern_name, ma
                             with open(log_file, "a") as f:
                                 f.write(f"{url}\n")
                         print(f"{GREEN}{url}{END}")
-            time.sleep(delay_generator())
 
         except Exception as e:
             print(f"{RED}Error during search:{END}\n{e}")
@@ -277,7 +278,7 @@ def main():
                 print(f"{BLUE}Processing pattern:{END} {pattern_name} for target {GREEN}{target}{END}")
                 queries = build_queries(pattern_data, target)
                 valid_sites = pattern_data.get("valid_sites", [])
-                urls = google_dork_search(queries, delay_generator, args.output, pattern_name)
+                urls = google_dork_search(queries, delay_generator(), args.output, pattern_name)
                 filtered_urls = log_urls(urls, valid_sites, args.output)
                 all_urls.extend(filtered_urls)
 
@@ -294,7 +295,7 @@ def main():
                 print(f"{BLUE}Processing pattern:{END} {pattern_name} for target {GREEN}{target}{END}")
                 queries = build_queries(pattern_data, target)
                 valid_sites = pattern_data.get("valid_sites", [])
-                urls = google_dork_search(queries, delay_generator, args.output, pattern_name)
+                urls = google_dork_search(queries, delay_generator(), args.output, pattern_name)
                 filtered_urls = log_urls(urls, valid_sites, args.output)
                 all_urls.extend(filtered_urls)
 
@@ -302,7 +303,7 @@ def main():
         pattern = args.custom
         for target in targets:
                 query = pattern.replace("{target}", target)
-                urls = google_dork_search([query,], delay_generator, args.output, pattern_name="")
+                urls = google_dork_search([query,], delay_generator(), args.output, pattern_name="")
                 filtered_urls = log_urls(urls, valid_sites, args.output)
                 all_urls.extend(filtered_urls)
     else:
